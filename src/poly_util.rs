@@ -1,4 +1,4 @@
-use ark_ff::{Field, PrimeField};
+use ark_ff::Field;
 
 //polynomial addition
 pub fn add<E: Field>(n: &[E], m: &[E]) -> Vec<E> {

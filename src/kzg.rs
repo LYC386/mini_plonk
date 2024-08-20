@@ -1,5 +1,4 @@
-mod util;
-
+use crate::poly_util;
 use ark_ec::pairing::Pairing;
 use ark_ff::Field;
 use ark_std::UniformRand;
@@ -7,6 +6,7 @@ use ark_std::Zero;
 use rand::Rng;
 use std::ops::Mul;
 use std::ops::Neg;
+
 pub struct KZG<E: Pairing> {
     pub g1: E::G1,
     pub g2: E::G2,
@@ -57,7 +57,7 @@ impl<E: Pairing> KZG<E> {
         u: E::ScalarField,
     ) -> Result<(E::ScalarField, E::G1), String> {
         let mut f = f.to_vec();
-        let f_u = util::eval(&f, u);
+        let f_u = poly_util::eval(&f, u);
         // f(x) = f(x) - f(u)
         f[0] = f[0] - f_u;
 
@@ -65,8 +65,8 @@ impl<E: Pairing> KZG<E> {
         let dx = vec![u.neg(), E::ScalarField::from(1u64)];
 
         // q(x) = f(x)-f(u) / d(x)
-        let (qx, r) = util::div(&f, &dx)?;
-        if !util::is_zero(&r) {
+        let (qx, r) = poly_util::div(&f, &dx)?;
+        if !poly_util::is_zero(&r) {
             return Err("r(x) is not zero".into());
         }
 
