@@ -41,7 +41,7 @@ impl<E: Pairing> KZG<E> {
     // calculate commitment of f (in coefficient repre)
     pub fn commit(&self, f: &[E::ScalarField]) -> Result<E::G1, String> {
         let mut com_f = E::G1::zero();
-        if f.len() > self.degree {
+        if f.len() > self.degree + 1 {
             return Err("degree of f exceeds maximum degree".into());
         }
         for (pi, fi) in self.gp1.iter().zip(f.iter()) {
@@ -93,7 +93,7 @@ mod test {
     pub fn test_setup() -> KZG<Bls12_381> {
         let g1 = G1Projective::generator();
         let g2 = G2Projective::generator();
-        let mut kzg = KZG::<Bls12_381>::new(g1, g2, 11);
+        let mut kzg = KZG::<Bls12_381>::new(g1, g2, 3);
         let mut rng = rand::thread_rng();
         kzg.random_setup(&mut rng);
 

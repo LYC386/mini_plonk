@@ -11,18 +11,23 @@ pub fn gen_proof<E: Pairing>(
     f: &[E::ScalarField],
     com_f: E::G1,
     degree_w: usize,
-    poly_commit: KZG<E>,
+    poly_commit: &KZG<E>,
 ) -> Result<(E::G1, E::ScalarField, E::G1, E::ScalarField, E::G1), String> {
     // vanishing polynimial of W = P{1, w, w^2, ..., w^k-1}
-    let mut z_w = vec![E::ScalarField::ZERO; degree_w];
-    z_w[0] = E::ScalarField::from(1u32).neg();
-    z_w[degree_w - 1] = E::ScalarField::from(1u32);
+    // below is for w^k = 1
+    // let mut z_w: Vec<<E as Pairing>::ScalarField> = vec![E::ScalarField::ZERO; degree_w];
+    // z_w[0] = E::ScalarField::from(1u32).neg();
+    // z_w[degree_w - 1] = E::ScalarField::from(1u32);
+    let mut z_w = vec![E::ScalarField::ONE];
+    for i in 0..degree_w {
+        z_w = poly_util::mul(
+            &z_w,
+            &[-w.pow(&[i.try_into().unwrap()]), E::ScalarField::ONE],
+        );
+    }
 
     // calaulate q(x)
-    let (q, r) = poly_util::div(f, &z_w)?;
-    if !poly_util::is_zero(&r) {
-        return Err("remainder is not zero".into());
-    }
+    let (q, _) = poly_util::div(f, &z_w)?;
     let com_q = poly_commit.commit(&q)?;
 
     // generate r
@@ -53,12 +58,20 @@ pub fn verify<E: Pairing>(
     fr: E::ScalarField,
     pi_fr: E::G1,
     degree_w: usize,
-    poly_commit: KZG<E>,
+    poly_commit: &KZG<E>,
 ) -> bool {
     // vanishing polynimial of W = P{1, w, w^2, ..., w^k-1}
-    let mut z_w = vec![E::ScalarField::ZERO; degree_w];
-    z_w[0] = E::ScalarField::from(1u32).neg();
-    z_w[degree_w - 1] = E::ScalarField::from(1u32);
+    // below is for w^k = 1
+    // let mut z_w: Vec<<E as Pairing>::ScalarField> = vec![E::ScalarField::ZERO; degree_w];
+    // z_w[0] = E::ScalarField::from(1u32).neg();
+    // z_w[degree_w - 1] = E::ScalarField::from(1u32);
+    let mut z_w = vec![E::ScalarField::ONE];
+    for i in 0..degree_w {
+        z_w = poly_util::mul(
+            &z_w,
+            &[-w.pow(&[i.try_into().unwrap()]), E::ScalarField::ONE],
+        )
+    }
 
     // calculate coin r
     //TODO - check what should be in the public coin
@@ -85,4 +98,55 @@ pub fn verify<E: Pairing>(
         return false;
     }
     true
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use ark_bls12_381::{Bls12_381, Fr, G1Projective, G2Projective};
+    use ark_ec::Group;
+
+    #[test]
+    pub fn zero_test_happy_path() {
+        // W = (1,5,25)
+        let w = Fr::from(5u8);
+        let degree_w = 3;
+        // f = (x-1)(x-5)(x-25)(x+3)
+        let f = vec![
+            Fr::from(-375),
+            Fr::from(340),
+            Fr::from(62),
+            Fr::from(-28),
+            Fr::from(1),
+        ];
+        let mut poly_commit =
+            KZG::<Bls12_381>::new(G1Projective::generator(), G2Projective::generator(), 4);
+        poly_commit.random_setup(&mut rand::thread_rng());
+        let com_f = poly_commit.commit(&f).unwrap();
+        let (com_q, qr, pi_q, fr, pi_f) = gen_proof(w, &f, com_f, degree_w, &poly_commit).unwrap();
+
+        let res = verify(w, com_f, com_q, qr, pi_q, fr, pi_f, degree_w, &poly_commit);
+        assert!(res)
+    }
+
+    #[test]
+    pub fn zero_test_soundness() {
+        let w = Fr::from(5u8);
+        let degree_w = 3;
+        let f = vec![
+            Fr::from(-375),
+            Fr::from(340),
+            Fr::from(62),
+            Fr::from(-28),
+            Fr::from(2),
+        ];
+        let mut poly_commit =
+            KZG::<Bls12_381>::new(G1Projective::generator(), G2Projective::generator(), 4);
+        poly_commit.random_setup(&mut rand::thread_rng());
+        let com_f = poly_commit.commit(&f).unwrap();
+        let (com_q, qr, pi_q, fr, pi_f) = gen_proof(w, &f, com_f, degree_w, &poly_commit).unwrap();
+
+        let res = verify(w, com_f, com_q, qr, pi_q, fr, pi_f, degree_w, &poly_commit);
+        assert!(!res);
+    }
 }
