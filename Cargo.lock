@@ -307,6 +307,7 @@ dependencies = [
  "ark-serialize",
  "ark-std",
  "crypto-hash",
+ "num-traits",
  "rand",
 ]
 
