@@ -1,33 +1,30 @@
-use crate::{kzg::KZG, poly_util};
+use crate::{kzg::KZG, poly_util::Polynomial};
 use ark_ec::pairing::Pairing;
 use ark_ff::Field;
 use ark_serialize::CanonicalSerialize;
 use crypto_hash::{Algorithm::SHA256, Hasher};
-use std::{io::Write, ops::Neg};
+use std::io::Write;
 
 // generate a zero proof, returns com_q, q(r), pi_q, f(r), pi_f
 pub fn gen_proof<E: Pairing>(
     w: E::ScalarField,
-    f: &[E::ScalarField],
+    f: &Polynomial<E::ScalarField>,
     com_f: E::G1,
     degree_w: usize,
     poly_commit: &KZG<E>,
 ) -> Result<(E::G1, E::ScalarField, E::G1, E::ScalarField, E::G1), String> {
     // vanishing polynimial of W = P{1, w, w^2, ..., w^k-1}
-    // below is for w^k = 1
+    // TODO: set w as kth power of root
     // let mut z_w: Vec<<E as Pairing>::ScalarField> = vec![E::ScalarField::ZERO; degree_w];
     // z_w[0] = E::ScalarField::from(1u32).neg();
     // z_w[degree_w - 1] = E::ScalarField::from(1u32);
-    let mut z_w = vec![E::ScalarField::ONE];
+    let mut z_w = Polynomial::new(vec![E::ScalarField::ONE]);
     for i in 0..degree_w {
-        z_w = poly_util::mul(
-            &z_w,
-            &[-w.pow(&[i.try_into().unwrap()]), E::ScalarField::ONE],
-        );
+        z_w = &z_w * &Polynomial::new(vec![-w.pow(&[i.try_into().unwrap()]), E::ScalarField::ONE]);
     }
 
     // calaulate q(x)
-    let (q, _) = poly_util::div(f, &z_w)?;
+    let (q, _) = (f / &z_w)?;
     let com_q = poly_commit.commit(&q)?;
 
     // generate r
@@ -61,16 +58,13 @@ pub fn verify<E: Pairing>(
     poly_commit: &KZG<E>,
 ) -> bool {
     // vanishing polynimial of W = P{1, w, w^2, ..., w^k-1}
-    // below is for w^k = 1
+    // TODO: set w as kth power of root
     // let mut z_w: Vec<<E as Pairing>::ScalarField> = vec![E::ScalarField::ZERO; degree_w];
     // z_w[0] = E::ScalarField::from(1u32).neg();
     // z_w[degree_w - 1] = E::ScalarField::from(1u32);
-    let mut z_w = vec![E::ScalarField::ONE];
+    let mut z_w = Polynomial::new(vec![E::ScalarField::ONE]);
     for i in 0..degree_w {
-        z_w = poly_util::mul(
-            &z_w,
-            &[-w.pow(&[i.try_into().unwrap()]), E::ScalarField::ONE],
-        )
+        z_w = &z_w * &Polynomial::new(vec![-w.pow(&[i.try_into().unwrap()]), E::ScalarField::ONE]);
     }
 
     // calculate coin r
@@ -93,7 +87,7 @@ pub fn verify<E: Pairing>(
     }
 
     //check if f(r)=q(r)*z_w(r)
-    let z_wr = poly_util::eval(&z_w, r);
+    let z_wr = z_w.eval(r);
     if fr != qr * z_wr {
         return false;
     }
@@ -112,13 +106,13 @@ mod test {
         let w = Fr::from(5u8);
         let degree_w = 3;
         // f = (x-1)(x-5)(x-25)(x+3)
-        let f = vec![
+        let f = Polynomial::new(vec![
             Fr::from(-375),
             Fr::from(340),
             Fr::from(62),
             Fr::from(-28),
             Fr::from(1),
-        ];
+        ]);
         let mut poly_commit =
             KZG::<Bls12_381>::new(G1Projective::generator(), G2Projective::generator(), 4);
         poly_commit.random_setup(&mut rand::thread_rng());
@@ -133,13 +127,13 @@ mod test {
     pub fn zero_test_soundness() {
         let w = Fr::from(5u8);
         let degree_w = 3;
-        let f = vec![
+        let f = Polynomial::new(vec![
             Fr::from(-375),
             Fr::from(340),
             Fr::from(62),
             Fr::from(-28),
             Fr::from(2),
-        ];
+        ]);
         let mut poly_commit =
             KZG::<Bls12_381>::new(G1Projective::generator(), G2Projective::generator(), 4);
         poly_commit.random_setup(&mut rand::thread_rng());

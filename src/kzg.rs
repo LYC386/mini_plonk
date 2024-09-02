@@ -1,4 +1,4 @@
-use crate::poly_util;
+use crate::poly_util::Polynomial;
 use ark_ec::pairing::Pairing;
 use ark_ff::Field;
 use ark_std::UniformRand;
@@ -39,9 +39,9 @@ impl<E: Pairing> KZG<E> {
 
     // f_0 * gp1_0 +...+f_d * gp1_d
     // calculate commitment of f (in coefficient repre)
-    pub fn commit(&self, f: &[E::ScalarField]) -> Result<E::G1, String> {
+    pub fn commit(&self, f: &Polynomial<E::ScalarField>) -> Result<E::G1, String> {
         let mut com_f = E::G1::zero();
-        if f.len() > self.degree + 1 {
+        if f.degree() > self.degree + 1 {
             return Err("degree of f exceeds maximum degree".into());
         }
         for (pi, fi) in self.gp1.iter().zip(f.iter()) {
@@ -53,20 +53,20 @@ impl<E: Pairing> KZG<E> {
     // evaluate f(u) and return (f(u), pi)
     pub fn eval(
         &self,
-        f: &[E::ScalarField],
+        f: &Polynomial<E::ScalarField>,
         u: E::ScalarField,
     ) -> Result<(E::ScalarField, E::G1), String> {
-        let mut f = f.to_vec();
-        let f_u = poly_util::eval(&f, u);
+        let mut f = f.clone();
+        let f_u = f.eval(u);
         // f(x) = f(x) - f(u)
         f[0] = f[0] - f_u;
 
         // d(x) = (x-u)
-        let dx = vec![u.neg(), E::ScalarField::from(1u64)];
+        let dx = Polynomial::new(vec![u.neg(), E::ScalarField::from(1u64)]);
 
         // q(x) = f(x)-f(u) / d(x)
-        let (qx, r) = poly_util::div(&f, &dx)?;
-        if !poly_util::is_zero(&r) {
+        let (qx, r) = (&f / &dx)?;
+        if !r.is_zero() {
             return Err("r(x) is not zero".into());
         }
 
@@ -104,7 +104,7 @@ mod test {
     pub fn test_e2e_happy_path() {
         let kzg = test_setup();
         //f = 2x^2 + 3x + 4
-        let f = vec![Fr::from(4), Fr::from(3), Fr::from(2), Fr::from(0)];
+        let f = Polynomial::new(vec![Fr::from(4), Fr::from(3), Fr::from(2), Fr::from(0)]);
         let com_f = kzg.commit(&f).unwrap();
         let u = Fr::from(2);
         let (v, pi) = kzg.eval(&f, u).unwrap();
@@ -117,8 +117,8 @@ mod test {
     pub fn test_wrong_pi() {
         let kzg = test_setup();
         //f = 2x^2 + 3x + 4
-        let f = vec![Fr::from(4), Fr::from(3), Fr::from(2), Fr::from(0)];
-        let f_prime = vec![Fr::from(4), Fr::from(3), Fr::from(1)];
+        let f = Polynomial::new(vec![Fr::from(4), Fr::from(3), Fr::from(2), Fr::from(0)]);
+        let f_prime = Polynomial::new(vec![Fr::from(4), Fr::from(3), Fr::from(1)]);
         let com_f = kzg.commit(&f_prime).unwrap();
         let u = Fr::from(2);
         let (v, pi) = kzg.eval(&f, u).unwrap();
