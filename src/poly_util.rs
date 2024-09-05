@@ -231,7 +231,13 @@ where
 
 impl<E> Div for &Polynomial<E>
 where
-    E: Zero + Clone + Div<Output = E> + Mul<Output = E> + Sub<Output = E> + std::cmp::PartialEq,
+    E: Zero
+        + Clone
+        + Div<Output = E>
+        + Mul<Output = E>
+        + Sub<Output = E>
+        + std::cmp::PartialEq
+        + std::fmt::Debug,
 {
     type Output = Result<(Polynomial<E>, Polynomial<E>), String>;
 
@@ -289,7 +295,7 @@ where
             }
 
             // clean leading zeros of r
-            while *r.last().unwrap() == E::zero() && r.len() != 1 {
+            if *r.last().unwrap() == E::zero() && r.len() != 1 {
                 r.pop();
             }
             // if r=0, return
@@ -314,7 +320,7 @@ impl<E: Zero + std::cmp::PartialEq> Polynomial<E> {
 
 impl<E> Polynomial<E> {
     pub fn degree(&self) -> usize {
-        self.data.len()
+        self.data.len() - 1
     }
 
     pub fn iter(&self) -> std::slice::Iter<'_, E> {
@@ -420,6 +426,18 @@ mod test {
         let (q, r) = (&n / &d).unwrap();
         assert_eq!(q, Polynomial::new(vec![Fq::from(0)]));
         assert_eq!(r, Polynomial::new(vec![Fq::from(2), Fq::from(1)]));
+    }
+
+    #[test]
+    fn test_div4() {
+        // n = 2x+3
+        let n = Polynomial::new(vec![7, 0, 0, 0, 0, 0, 0, 0, 1]);
+        //d = 2x^4 + 3x^3 + 0x^2 + x + 4
+        let d = Polynomial::new(vec![7, 8, 0, 7, 0, 0, 0, 0, 4, 3, 0, 2]);
+
+        let (q, r) = (&d / &n).unwrap();
+        // assert_eq!(q, Polynomial::new(vec![0]));
+        // assert_eq!(r, Polynomial::new(vec![Fq::from(2), Fq::from(1)]));
     }
 
     #[test]

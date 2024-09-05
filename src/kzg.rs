@@ -41,7 +41,7 @@ impl<E: Pairing> KZG<E> {
     // calculate commitment of f (in coefficient repre)
     pub fn commit(&self, f: &Polynomial<E::ScalarField>) -> Result<E::G1, String> {
         let mut com_f = E::G1::zero();
-        if f.degree() > self.degree + 1 {
+        if f.degree() > self.degree {
             return Err("degree of f exceeds maximum degree".into());
         }
         for (pi, fi) in self.gp1.iter().zip(f.iter()) {
