@@ -216,14 +216,18 @@ where
                 r[i + q_pos] = r[i + q_pos].clone() - t.clone() * di.clone();
             }
 
-            // clean leading zeros of r
-            while *r.last().unwrap() == E::zero() && r.len() != 1 {
+            // pop leading zero of r
+            if *r.last().unwrap() == E::zero() && r.len() != 1 {
                 r.pop();
             }
             // if r=0, return
             if r.len() == 1 && r[0] == E::zero() {
                 break;
             }
+        }
+        // clean leading zeros of r
+        while *r.last().unwrap() == E::zero() && r.len() != 1 {
+            r.pop();
         }
         Ok((Polynomial { data: q }, Polynomial { data: r }))
     }
@@ -294,7 +298,7 @@ where
                 r[i + q_pos] = r[i + q_pos].clone() - t.clone() * di.clone();
             }
 
-            // clean leading zeros of r
+            // pop leading zero of r
             if *r.last().unwrap() == E::zero() && r.len() != 1 {
                 r.pop();
             }
@@ -302,6 +306,10 @@ where
             if r.len() == 1 && r[0] == E::zero() {
                 break;
             }
+        }
+        // clean leading zeros of r
+        while *r.last().unwrap() == E::zero() && r.len() != 1 {
+            r.pop();
         }
         Ok((Polynomial { data: q }, Polynomial { data: r }))
     }
@@ -341,6 +349,11 @@ mod test {
         // n = x+2
         let n = Polynomial::new(vec![Fq::from(2), Fq::from(1)]);
 
+        let r = &m + &n;
+        assert_eq!(
+            r,
+            Polynomial::new(vec![Fq::from(6), Fq::from(4), Fq::from(2)])
+        );
         let r = m + n;
         assert_eq!(
             r,
@@ -355,6 +368,11 @@ mod test {
         // n = x+2
         let n = Polynomial::new(vec![Fq::from(2), Fq::from(1)]);
 
+        let r = &n - &m;
+        assert_eq!(
+            r,
+            Polynomial::new(vec![Fq::from(-2), Fq::from(-2), Fq::from(-2)])
+        );
         let r = n - m;
         assert_eq!(
             r,
@@ -399,6 +417,9 @@ mod test {
         // d = x+2
         let d = Polynomial::new(vec![Fq::from(2), Fq::from(1), Fq::from(0)]);
 
+        let (q, r) = (&n / &d).unwrap();
+        assert_eq!(q, Polynomial::new(vec![Fq::from(-1), Fq::from(2)]));
+        assert_eq!(r, Polynomial::new(vec![Fq::from(6)]));
         let (q, r) = (n / d).unwrap();
         assert_eq!(q, Polynomial::new(vec![Fq::from(-1), Fq::from(2)]));
         assert_eq!(r, Polynomial::new(vec![Fq::from(6)]));
@@ -411,6 +432,9 @@ mod test {
         // d = x+2
         let d = Polynomial::new(vec![Fq::from(2), Fq::from(1), Fq::from(0)]);
 
+        let (q, r) = (&n / &d).unwrap();
+        assert_eq!(q, Polynomial::new(vec![Fq::from(2)]));
+        assert_eq!(r, Polynomial::new(vec![Fq::from(0)]));
         let (q, r) = (n / d).unwrap();
         assert_eq!(q, Polynomial::new(vec![Fq::from(2)]));
         assert_eq!(r, Polynomial::new(vec![Fq::from(0)]));
@@ -426,6 +450,9 @@ mod test {
         let (q, r) = (&n / &d).unwrap();
         assert_eq!(q, Polynomial::new(vec![Fq::from(0)]));
         assert_eq!(r, Polynomial::new(vec![Fq::from(2), Fq::from(1)]));
+        let (q, r) = (n / d).unwrap();
+        assert_eq!(q, Polynomial::new(vec![Fq::from(0)]));
+        assert_eq!(r, Polynomial::new(vec![Fq::from(2), Fq::from(1)]));
     }
 
     #[test]
@@ -436,8 +463,11 @@ mod test {
         let d = Polynomial::new(vec![7, 8, 0, 7, 0, 0, 0, 0, 4, 3, 0, 2]);
 
         let (q, r) = (&d / &n).unwrap();
-        // assert_eq!(q, Polynomial::new(vec![0]));
-        // assert_eq!(r, Polynomial::new(vec![Fq::from(2), Fq::from(1)]));
+        assert_eq!(q, Polynomial::new(vec![4, 3, 0, 2]));
+        assert_eq!(r, Polynomial::new(vec![-21, -13, 0, -7]));
+        let (q, r) = (d / n).unwrap();
+        assert_eq!(q, Polynomial::new(vec![4, 3, 0, 2]));
+        assert_eq!(r, Polynomial::new(vec![-21, -13, 0, -7]));
     }
 
     #[test]
