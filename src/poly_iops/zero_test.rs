@@ -28,6 +28,7 @@ pub fn gen_proof<E: Pairing>(
     w.serialize_uncompressed(&mut hasher).unwrap();
     com_f.serialize_uncompressed(&mut hasher).unwrap();
     hasher.write_all(&degree_w.to_be_bytes()).unwrap();
+    hasher.write_all(b"ZERO_TEST").unwrap();
     let mut count = 0usize;
     let r;
     loop {
@@ -73,6 +74,7 @@ pub fn verify<E: Pairing>(
     w.serialize_uncompressed(&mut hasher).unwrap();
     com_f.serialize_uncompressed(&mut hasher).unwrap();
     hasher.write_all(&degree_w.to_be_bytes()).unwrap();
+    hasher.write_all(b"ZERO_TEST").unwrap();
     let mut count = 0usize;
     let r;
     loop {
