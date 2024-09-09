@@ -299,3 +299,198 @@ pub fn verify<E: Pairing>(
 
     return true;
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use ark_bls12_381::{Bls12_381, Fr, G1Projective, G2Projective};
+    use ark_ec::Group;
+    use ark_ff::PrimeField;
+    use ark_std::One;
+    use num_bigint::BigUint;
+
+    #[test]
+    pub fn happy_path() {
+        // create w as an 8th root of unity
+        let modulus: BigUint = Fr::MODULUS.into();
+        let one: num_bigint::BigUint = Fr::one().into();
+        let ord = &modulus - one;
+        let fr_gen = Fr::from(7);
+        let subgroup_ord = Fr::from(8);
+        let w = fr_gen.pow((ord / BigUint::from(subgroup_ord)).to_u64_digits());
+        let degree_w = 8;
+
+        // create permutation function
+        // per(w^0) = w^2, per(w^1) = w^5, per(w^2) = w^6, per(w^3) = w^0
+        // per(w^4) = w^1, per(w^5) = w^3, per(w^6) = w^7, per(w^7) = w^4
+        let per = Polynomial::interpolate(&[
+            (w.pow(&[0]), w.pow(&[2])),
+            (w.pow(&[1]), w.pow(&[5])),
+            (w.pow(&[2]), w.pow(&[6])),
+            (w.pow(&[3]), w.pow(&[0])),
+            (w.pow(&[4]), w.pow(&[1])),
+            (w.pow(&[5]), w.pow(&[3])),
+            (w.pow(&[6]), w.pow(&[7])),
+            (w.pow(&[7]), w.pow(&[4])),
+        ]);
+
+        let f = Polynomial::interpolate(&[
+            (w.pow(&[0]), Fr::from(12)),
+            (w.pow(&[1]), Fr::from(40)),
+            (w.pow(&[2]), Fr::from(2)),
+            (w.pow(&[3]), Fr::from(9)),
+            (w.pow(&[4]), Fr::from(300).inverse().unwrap()),
+            (w.pow(&[5]), Fr::from(24)),
+            (w.pow(&[6]), Fr::from(1)),
+            (w.pow(&[7]), Fr::from(17).inverse().unwrap()),
+            (Fr::from(10), Fr::from(25)),
+        ]);
+
+        let g = Polynomial::interpolate(&[
+            (w.pow(&[2]), Fr::from(12)),
+            (w.pow(&[5]), Fr::from(40)),
+            (w.pow(&[6]), Fr::from(2)),
+            (w.pow(&[0]), Fr::from(9)),
+            (w.pow(&[1]), Fr::from(300).inverse().unwrap()),
+            (w.pow(&[3]), Fr::from(24)),
+            (w.pow(&[7]), Fr::from(1)),
+            (w.pow(&[4]), Fr::from(17).inverse().unwrap()),
+            (Fr::from(17), Fr::from(35)),
+        ]);
+
+        let mut poly_commit =
+            KZG::<Bls12_381>::new(G1Projective::generator(), G2Projective::generator(), 8);
+        poly_commit.random_setup(&mut rand::thread_rng());
+        let com_f = poly_commit.commit(&f).unwrap();
+        let com_g = poly_commit.commit(&g).unwrap();
+        let com_per = poly_commit.commit(&per).unwrap();
+
+        let pf = gen_proof(f, g, per, w, degree_w, com_f, com_g, com_per, &poly_commit).unwrap();
+        let res = verify(pf, w, degree_w, com_f, com_g, com_per, &poly_commit);
+        assert!(res);
+    }
+
+    #[test]
+    pub fn incorrect_per_func() {
+        // create w as an 8th root of unity
+        let modulus: BigUint = Fr::MODULUS.into();
+        let one: num_bigint::BigUint = Fr::one().into();
+        let ord = &modulus - one;
+        let fr_gen = Fr::from(7);
+        let subgroup_ord = Fr::from(8);
+        let w = fr_gen.pow((ord / BigUint::from(subgroup_ord)).to_u64_digits());
+        let degree_w = 8;
+
+        // create permutation function
+        // wrong permutation
+        // per(w^0) = w^2, per(w^1) = w^6, per(w^2) = w^5, per(w^3) = w^0
+        // per(w^4) = w^1, per(w^5) = w^3, per(w^6) = w^7, per(w^7) = w^4
+        let per = Polynomial::interpolate(&[
+            (w.pow(&[0]), w.pow(&[2])),
+            (w.pow(&[1]), w.pow(&[6])),
+            (w.pow(&[2]), w.pow(&[5])),
+            (w.pow(&[3]), w.pow(&[0])),
+            (w.pow(&[4]), w.pow(&[1])),
+            (w.pow(&[5]), w.pow(&[3])),
+            (w.pow(&[6]), w.pow(&[7])),
+            (w.pow(&[7]), w.pow(&[4])),
+        ]);
+
+        let f = Polynomial::interpolate(&[
+            (w.pow(&[0]), Fr::from(12)),
+            (w.pow(&[1]), Fr::from(40)),
+            (w.pow(&[2]), Fr::from(2)),
+            (w.pow(&[3]), Fr::from(9)),
+            (w.pow(&[4]), Fr::from(300).inverse().unwrap()),
+            (w.pow(&[5]), Fr::from(24)),
+            (w.pow(&[6]), Fr::from(1)),
+            (w.pow(&[7]), Fr::from(17).inverse().unwrap()),
+            (Fr::from(10), Fr::from(25)),
+        ]);
+
+        let g = Polynomial::interpolate(&[
+            (w.pow(&[2]), Fr::from(12)),
+            (w.pow(&[5]), Fr::from(40)),
+            (w.pow(&[6]), Fr::from(2)),
+            (w.pow(&[0]), Fr::from(9)),
+            (w.pow(&[1]), Fr::from(300).inverse().unwrap()),
+            (w.pow(&[3]), Fr::from(24)),
+            (w.pow(&[7]), Fr::from(1)),
+            (w.pow(&[4]), Fr::from(17).inverse().unwrap()),
+            (Fr::from(17), Fr::from(35)),
+        ]);
+
+        let mut poly_commit =
+            KZG::<Bls12_381>::new(G1Projective::generator(), G2Projective::generator(), 8);
+        poly_commit.random_setup(&mut rand::thread_rng());
+        let com_f = poly_commit.commit(&f).unwrap();
+        let com_g = poly_commit.commit(&g).unwrap();
+        let com_per = poly_commit.commit(&per).unwrap();
+
+        let pf = gen_proof(f, g, per, w, degree_w, com_f, com_g, com_per, &poly_commit).unwrap();
+        let res = verify(pf, w, degree_w, com_f, com_g, com_per, &poly_commit);
+        assert!(!res);
+    }
+
+    #[test]
+    pub fn incorrect_g_func() {
+        // create w as an 8th root of unity
+        let modulus: BigUint = Fr::MODULUS.into();
+        let one: num_bigint::BigUint = Fr::one().into();
+        let ord = &modulus - one;
+        let fr_gen = Fr::from(7);
+        let subgroup_ord = Fr::from(8);
+        let w = fr_gen.pow((ord / BigUint::from(subgroup_ord)).to_u64_digits());
+        let degree_w = 8;
+
+        // create permutation function
+        // wrong permutation
+        // per(w^0) = w^2, per(w^1) = w^6, per(w^2) = w^5, per(w^3) = w^0
+        // per(w^4) = w^1, per(w^5) = w^3, per(w^6) = w^7, per(w^7) = w^4
+        let per = Polynomial::interpolate(&[
+            (w.pow(&[0]), w.pow(&[2])),
+            (w.pow(&[1]), w.pow(&[6])),
+            (w.pow(&[2]), w.pow(&[5])),
+            (w.pow(&[3]), w.pow(&[0])),
+            (w.pow(&[4]), w.pow(&[1])),
+            (w.pow(&[5]), w.pow(&[3])),
+            (w.pow(&[6]), w.pow(&[7])),
+            (w.pow(&[7]), w.pow(&[4])),
+        ]);
+
+        let f = Polynomial::interpolate(&[
+            (w.pow(&[0]), Fr::from(12)),
+            (w.pow(&[1]), Fr::from(40)),
+            (w.pow(&[2]), Fr::from(2)),
+            (w.pow(&[3]), Fr::from(9)),
+            (w.pow(&[4]), Fr::from(300).inverse().unwrap()),
+            (w.pow(&[5]), Fr::from(24)),
+            (w.pow(&[6]), Fr::from(1)),
+            (w.pow(&[7]), Fr::from(17).inverse().unwrap()),
+            (Fr::from(10), Fr::from(25)),
+        ]);
+
+        let g = Polynomial::interpolate(&[
+            (w.pow(&[2]), Fr::from(12)),
+            (w.pow(&[5]), Fr::from(40)),
+            (w.pow(&[6]), Fr::from(1)),
+            (w.pow(&[0]), Fr::from(9)),
+            (w.pow(&[1]), Fr::from(300).inverse().unwrap()),
+            (w.pow(&[3]), Fr::from(24)),
+            (w.pow(&[7]), Fr::from(1)),
+            (w.pow(&[4]), Fr::from(17).inverse().unwrap()),
+            (Fr::from(17), Fr::from(35)),
+        ]);
+
+        let mut poly_commit =
+            KZG::<Bls12_381>::new(G1Projective::generator(), G2Projective::generator(), 8);
+        poly_commit.random_setup(&mut rand::thread_rng());
+        let com_f = poly_commit.commit(&f).unwrap();
+        let com_g = poly_commit.commit(&g).unwrap();
+        let com_per = poly_commit.commit(&per).unwrap();
+
+        let pf = gen_proof(f, g, per, w, degree_w, com_f, com_g, com_per, &poly_commit).unwrap();
+        let res = verify(pf, w, degree_w, com_f, com_g, com_per, &poly_commit);
+        assert!(!res);
+    }
+}
